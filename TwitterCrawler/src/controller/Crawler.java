@@ -12,7 +12,9 @@ import twitter4j.TwitterException;
 public class Crawler {
 
 	public static final int DEFAULT_CRAWL_TO_LEVEL = 1;
+	public static final int SLEEP_TIME_IN_MINUTES = 15;
 	public static final String FOLLOWERS_FOLDER = "followers/";
+	
 	
 	public static void main(String[] args) {
 		Crawler crawler = new Crawler();
@@ -25,6 +27,7 @@ public class Crawler {
 		if (args.length > 0 && args[0].trim().length() > 0) {
 			try {
 				crawlToLevel = Integer.parseInt(args[0].trim());
+				System.out.println("Crawl to level " + crawlToLevel);
 			} catch (NumberFormatException e) {
 				System.err.println("Could not parse input parameter " + args[0]);
 			}
@@ -35,6 +38,13 @@ public class Crawler {
 			RestartController restartController = RestartController.getInstance();
 			ArrayDeque<RestartQueueEntry> startingSet = restartController.getStartingSet();
 			crawlSuccess = crawlTwitterFollowers(startingSet, crawlToLevel);
+			if (!crawlSuccess) {
+				try {
+					Thread.sleep(SLEEP_TIME_IN_MINUTES * 1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 
 	}
