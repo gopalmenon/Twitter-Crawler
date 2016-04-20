@@ -12,8 +12,10 @@ import twitter4j.TwitterException;
 public class Crawler {
 
 	public static final int DEFAULT_CRAWL_TO_LEVEL = 1;
-	public static final int SLEEP_TIME_IN_MINUTES = 15;
+	public static final int INSUFFICIENT_AUTHORITY_TO_PROFILE = 401;
+	public static final int SLEEP_TIME_IN_SECONDS = 15 * 60;
 	public static final String FOLLOWERS_FOLDER = "followers/";
+	public static final String FRIENDS_FOLDER = "friends/";
 	
 	
 	public static void main(String[] args) {
@@ -34,13 +36,14 @@ public class Crawler {
 		}
 		
 		boolean crawlSuccess = false;
+		RestartController restartController = RestartController.getInstance();
 		while (!crawlSuccess) {
-			RestartController restartController = RestartController.getInstance();
 			ArrayDeque<RestartQueueEntry> startingSet = restartController.getStartingSet();
 			crawlSuccess = crawlTwitterFollowers(startingSet, crawlToLevel);
 			if (!crawlSuccess) {
+				System.err.println("Going to sleep for " + SLEEP_TIME_IN_SECONDS + " seconds.");
 				try {
-					Thread.sleep(SLEEP_TIME_IN_MINUTES * 1000);
+					RestartController.getInstance().sleepAtLeast(SLEEP_TIME_IN_SECONDS * 1000);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -74,7 +77,12 @@ public class Crawler {
 				} catch (TwitterException e) {
 					System.err.println("TwitterException thrown while finding followers for ID " + restartQueueEntry.getTwitterId() + " at level " + restartQueueEntry.getLevelNumber());
 					RestartController restartController = RestartController.getInstance();
-					startingSet.addFirst(restartQueueEntry);
+					//If exception is thrown due to insufficient authority to twitter profile, skip it
+					if (e.getStatusCode() == INSUFFICIENT_AUTHORITY_TO_PROFILE) {
+						System.err.println("Not authorized to ID " + restartQueueEntry.getTwitterId() + " at level " + restartQueueEntry.getLevelNumber() + ". Twitter ID skipped");
+					} else {
+						startingSet.addFirst(restartQueueEntry);
+					}
 					restartController.saveCurrentState(startingSet);
 					crawlSuccess = false;
 					break;

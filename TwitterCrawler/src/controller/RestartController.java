@@ -108,4 +108,16 @@ public class RestartController {
 		}
 		
 	}
+	
+	public void sleepAtLeast(long millis) throws InterruptedException {
+		System.out.println("Starting sleep at " + System.currentTimeMillis());
+		long t0 = System.currentTimeMillis();
+		long millisLeft = millis;
+		while (millisLeft > 0) {
+			Thread.sleep(millisLeft);
+			long t1 = System.currentTimeMillis();
+			millisLeft = millis - (t1 - t0);
+		}
+		System.out.println("Ending sleep at " + System.currentTimeMillis());
+	} 
 }
