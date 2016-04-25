@@ -13,7 +13,9 @@ public class Crawler {
 
 	public static final int DEFAULT_CRAWL_TO_LEVEL = 1;
 	public static final int INSUFFICIENT_AUTHORITY_TO_PROFILE = 401;
+	public static final int PROFILE_DOES_NOT_EXIST = 404;
 	public static final int SLEEP_TIME_IN_SECONDS = 15 * 60;
+	public static final int NAP_TIME_IN_SECONDS = 1 * 60;
 	public static final String FOLLOWERS_FOLDER = "followers/";
 	public static final String FRIENDS_FOLDER = "friends/";
 	
@@ -40,14 +42,6 @@ public class Crawler {
 		while (!crawlSuccess) {
 			ArrayDeque<RestartQueueEntry> startingSet = restartController.getStartingSet();
 			crawlSuccess = crawlTwitterFollowers(startingSet, crawlToLevel);
-			if (!crawlSuccess) {
-				System.err.println("Going to sleep for " + SLEEP_TIME_IN_SECONDS + " seconds.");
-				try {
-					RestartController.getInstance().sleepAtLeast(SLEEP_TIME_IN_SECONDS * 1000);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			}
 		}
 
 	}
@@ -78,17 +72,29 @@ public class Crawler {
 					System.err.println("TwitterException thrown while finding followers for ID " + restartQueueEntry.getTwitterId() + " at level " + restartQueueEntry.getLevelNumber());
 					RestartController restartController = RestartController.getInstance();
 					//If exception is thrown due to insufficient authority to twitter profile, skip it
-					if (e.getStatusCode() == INSUFFICIENT_AUTHORITY_TO_PROFILE) {
+					if (e.getStatusCode() == INSUFFICIENT_AUTHORITY_TO_PROFILE || e.getStatusCode() == PROFILE_DOES_NOT_EXIST) {
 						System.err.println("Not authorized to ID " + restartQueueEntry.getTwitterId() + " at level " + restartQueueEntry.getLevelNumber() + ". Twitter ID skipped");
+						System.err.println("Going to sleep for " + NAP_TIME_IN_SECONDS + " seconds.");
+						try {
+							restartController.sleepAtLeast(NAP_TIME_IN_SECONDS *1000);
+						} catch (InterruptedException e1) {
+							e1.printStackTrace();
+						}
 					} else {
 						startingSet.addFirst(restartQueueEntry);
+						System.err.println("Going to sleep for " + SLEEP_TIME_IN_SECONDS + " seconds.");
+						try {
+							restartController.sleepAtLeast(SLEEP_TIME_IN_SECONDS * 1000);
+						} catch (InterruptedException e1) {
+							e1.printStackTrace();
+						}
 					}
 					restartController.saveCurrentState(startingSet);
 					crawlSuccess = false;
 					break;
 				}  catch (FileNotFoundException | UnsupportedEncodingException e) {
 					System.err.println("Exception thrown while saving followers for ID " + restartQueueEntry.getTwitterId() + " at level " + restartQueueEntry.getLevelNumber());
-				}
+				} 
 			}
 		}
 		

@@ -50,6 +50,27 @@ public class FileWriter {
 		}
 	}
 	
+	public boolean folderExists(String folderName) {
+		
+		File folder = new File(folderName);
+		if(folder.exists() && folder.isDirectory()) { 
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	public String[] getFolderContents(String folderName) {
+		
+		File folder = new File(folderName);
+		if (folderExists(folderName)) { 
+			return folder.list();
+		} else {
+			return null;
+		}
+		
+	}
+	
 	public List<String> getFileContents(String fileName) throws IOException {
 		
 		List<String> returnValue = new ArrayList<String>();
