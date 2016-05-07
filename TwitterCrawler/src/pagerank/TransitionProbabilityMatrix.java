@@ -2,6 +2,8 @@ package pagerank;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ public class TransitionProbabilityMatrix {
 	public static final double MAXIMUM_TELEPORTATION_RATE = 1.0;
 	public static final double VECTOR_SIMILARITY_TARGET = 0.9999;
 	public static final int MAXIMUM_RANDOM_WALK_COUNT = 75;
+	public static final int DEFAULT_TOP_PAGE_RANKS_TO_PRINT = 10;
 	
 	private List<Long> twitterIds;
 	private Map<MatrixElement, Double> matrix;
@@ -23,6 +26,7 @@ public class TransitionProbabilityMatrix {
 	private double teleportationRate;
 	private double teleportationMatrixEntry;
 	private double[] probabilityDistributionVector;
+	private int topPageRanksToPrint;
 	
 	/**
 	 * Create the transition probability matrix based on twitter follower files present in folder
@@ -30,11 +34,11 @@ public class TransitionProbabilityMatrix {
 	 */
 	public TransitionProbabilityMatrix(String followersFolder) {
 		
-		this(followersFolder, DEFAULT_TELEPORTATION_RATE);
+		this(followersFolder, DEFAULT_TELEPORTATION_RATE, DEFAULT_TOP_PAGE_RANKS_TO_PRINT);
 		
 	}
 	
-	public TransitionProbabilityMatrix(String followersFolder, double teleportationRate) {
+	public TransitionProbabilityMatrix(String followersFolder, double teleportationRate, int topPageRanksToPrint) {
 		
 		if (teleportationRate > MINIMUM_TELEPORTATION_RATE && teleportationRate < MAXIMUM_TELEPORTATION_RATE) {
 			this.teleportationRate = teleportationRate;
@@ -43,9 +47,15 @@ public class TransitionProbabilityMatrix {
 			this.teleportationRate = DEFAULT_TELEPORTATION_RATE;
 		}
 		
+		this.topPageRanksToPrint = topPageRanksToPrint;
+		
+		System.out.println(Calendar.getInstance().getTime().toString() + " Creating unique set of Twitter Ids");
 		createSetOfUniqueTwitterIdsInFollowerGraph(followersFolder);
+		System.out.println(Calendar.getInstance().getTime().toString() + " Creating transition matrix entries");
 		createTransitionMatrixEntries(followersFolder);
+		System.out.println(Calendar.getInstance().getTime().toString() + " Normalizing Probability Matrix Rows");
 		normalizeTransitionProbabilityMatrixRows();
+		System.out.println(Calendar.getInstance().getTime().toString() + " Do random graph walk");
 		doRandomWalkOnFollowerGraph();
 		
 	}
@@ -164,10 +174,13 @@ public class TransitionProbabilityMatrix {
 		int columnNumber = this.twitterIds.indexOf(twitterId);
 		int rowNumber = this.twitterIds.indexOf(followerId);
 		
+		if (columnNumber == 0) {
+			System.out.println("Creating follower link for row + " + rowNumber + " and column " + columnNumber);
+		}
+		
 		//Create the link with a value of 1. This will be normalized later.
 		this.matrix.put(new MatrixElement(rowNumber, columnNumber, getNumberOfTwittersIdsInFollowerGraph()), 1.0);
 		incrementRowCount(rowNumber);
-		System.out.println("Created follower link for column " + columnNumber + " and row " + rowNumber);
 	}
 	
 	/**
@@ -198,9 +211,14 @@ public class TransitionProbabilityMatrix {
 				numberOfElementsInRow = 0;
 			}
 			for (int twitterIdColumnIndex = 0; twitterIdColumnIndex < numberOfTwittersIdsInFollowerGraph; ++twitterIdColumnIndex) {
+				
+				//if (twitterIdColumnIndex == 0) {
+				//	System.out.println("Normalizing probability for row + " + twitterIdRowIndex + " and column 0.");
+				//}
+				
 				if (this.matrix.containsKey(new MatrixElement(twitterIdRowIndex, twitterIdColumnIndex, numberOfTwittersIdsInFollowerGraph))) {
 					this.matrix.put(new MatrixElement(twitterIdRowIndex, twitterIdColumnIndex, numberOfTwittersIdsInFollowerGraph), numberOfElementsInRow != 0 ? Double.valueOf((1 - this.teleportationRate)/numberOfElementsInRow) : 0.0);
-					System.out.println("Normalized transition matrix for row " + twitterIdRowIndex + " and column " + twitterIdColumnIndex);
+					//System.out.println("Normalized transition matrix for row " + twitterIdRowIndex + " and column " + twitterIdColumnIndex);
 				}
 			}
 		}
@@ -219,8 +237,11 @@ public class TransitionProbabilityMatrix {
 		
 		TransitionProbabilityMatrix.PageRankHelper pageRankHelper = this.new PageRankHelper();
 		while (pageRankHelper.getVectorSimilarity() < VECTOR_SIMILARITY_TARGET && pageRankHelper.getRandownWalkCount() < MAXIMUM_RANDOM_WALK_COUNT) {
+			System.out.println("Random walk step# " + pageRankHelper.getRandownWalkCount());
 			pageRankHelper = doOneRandomWalkStep(pageRankHelper);
+			printPageRank(pageRankHelper.getVectorSimilarity());
 		}
+		
 		
 	}
 	
@@ -267,8 +288,6 @@ public class TransitionProbabilityMatrix {
 																  this.matrix.get(new MatrixElement(transitionMatrixRowIndex, transitionMatrixColumnNumber, transitionMatrixRows)).doubleValue() : 
 																  0.0));
 		}
-		
-		
 		
 	}
 	
@@ -340,6 +359,69 @@ public class TransitionProbabilityMatrix {
 	
 	public int getNumberOfTwittersIdsInFollowerGraph() {
 		return this.twitterIds.size();
+	}
+	
+	class PageRankEntry implements Comparable<PageRankEntry> {
+		
+		int index;
+		double pageRank;
+		
+		public PageRankEntry(int index, double pageRank) {
+			this.index = index;
+			this.pageRank = pageRank;
+		}
+		
+		public int getIndex() {
+			return index;
+		}
+
+		public double getPageRank() {
+			return pageRank;
+		}
+		
+		//Method for descending sort
+		@Override
+		public int compareTo(PageRankEntry object) {
+			
+			double otherValue = ((PageRankEntry) object).getPageRank();
+			double testValue = this.pageRank - otherValue;
+			if (testValue == 0.0) {
+				return 0;
+			} else if (testValue > 0) {
+				return -1;
+			} else {
+				return +1;
+			}
+			
+		}
+		
+	}
+	
+	private void printPageRank(double vectorSimilarity) {
+				
+		//Fill List of PageRankVector objects
+		List<PageRankEntry> pageRanksList = new ArrayList<PageRankEntry>();
+		int counter = 0;
+		for (double rank : this.probabilityDistributionVector) {
+			pageRanksList.add(new PageRankEntry(counter++, rank));
+		}
+
+		//Sort the page ranks
+		System.out.println(Calendar.getInstance().getTime().toString() + " Sorting the page ranks");
+		Collections.sort(pageRanksList);
+		
+		System.out.println("PageRank is:");
+
+		//Print the top page ranks
+		counter = 0;
+		for (PageRankEntry pageRankEntry : pageRanksList) {
+			if (counter++ < this.topPageRanksToPrint) {
+				System.out.println(Calendar.getInstance().getTime().toString() + ", Vector Similarity " + Double.valueOf(vectorSimilarity).toString() + ", Page Rank Index: " + Integer.valueOf(pageRankEntry.getIndex()).toString() + ", Page Rank Value " + pageRankEntry.getPageRank() + ", Twitter ID  " + Long.valueOf(this.twitterIds.get(pageRankEntry.getIndex())).toString());
+			} else {
+				break;
+			}
+		}
+		
 	}
 	
 }
